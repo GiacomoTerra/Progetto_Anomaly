@@ -5,6 +5,7 @@ import os
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from torchvision import datasets
 from torchvision.transforms import ToTensor
 from torch.utils.tensorboard import SummaryWriter
@@ -36,6 +37,13 @@ class GrapeDataset(Dataset):
 			for j in range(0, width, self.patch_size):
 				patch = image.crop((j, i , j+self.patch_size, i+self.patch_size))
 				tensor_patch = ToTensor()(patch)
+				# Calculate padding to make the patch equal to patch_size
+				padding_left = (self.patch_size - tensor_patch.size(2)) // 2
+				padding_right = self.patch_size - tensor_patch.size(2) - padding_left
+				padding_top = (self.patch_size - tensor_patch.size(1)) // 2
+				padding_bottom = self.patch_size - tensor_patch.size(1) - padding_top
+				# Apply padding to make the patch uniform size
+				padded_patch = F.pad(tensor_patch, (padding_left, padding_right, padding_top, padding_bottom))
 				patches.append(tensor_patch)
 		return patches
 		
@@ -44,15 +52,15 @@ class GrapeDataset(Dataset):
 
 writer = SummaryWriter()
 data_dir = "test_dataset"
-patch_size = 200
+patch_size = 300
 dataset = GrapeDataset(data_dir, patch_size)
 print(len(dataset))
-dataloader = DataLoader(dataset, batch_size = 8, shuffle = True)
+dataloader = DataLoader(dataset, batch_size = 16, shuffle = True)
 for i, data in enumerate(dataset):
 	images = data
 	images_tensor = torch.stack(images)
-	transform = transforms.Compose([transforms.Normalize(mean=[0.5, 0,5, 0.5], std=[0.5,0.5,0.5])])
+	transform = transforms.Compose([transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5,0.5,0.5])])
 	transformed_images = transform(images_tensor)
-	image_grid = make_grid(images, nrow=4, normalize=True, scale_each=True)
+	image_grid = make_grid(transformed_images, nrow=4, normalize=True, scale_each=True)
 	writer.add_image('Images', image_grid, i)
 writer.close()

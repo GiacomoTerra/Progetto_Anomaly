@@ -3,8 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchvision
+import random
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -25,6 +27,16 @@ def matplotlib_imshow(img, one_channel=False):
 	else:
 		plt.imshow(np.transpose(npimg, (1, 2, 0)))
 
+def custom_collate_fn(batch):
+	# Calcola la dimensione massima tra le patch nel batch
+	max_height = max(patch.size(1) for patch in batch)
+	max_width = max(patch.size(1) for patch in batch)
+	# Effettua il padding per far si che tutte le patch abbiano le stesse dimensioni
+	padded_batch = [F.pad(patch, (0, max_width - patch.size(2), 0, max_height - patch.size(1))) for patch in batch]
+	# Converti la lista di tensori in un tensore batch
+	batch_tensor = torch.stack(padded_batch)
+	return batch_tensor
+
 class ConvAutoencoder(nn.Module):
 	def __init__(self):
 		super(ConvAutoencoder, self).__init__()
@@ -37,7 +49,7 @@ class ConvAutoencoder(nn.Module):
 			nn.LeakyReLU(0.2, inplace=True),
 			nn.MaxPool2d(kernel_size=2, stride=2),
 			nn.Conv2d(18,20, kernel_size=9, stride=2, padding=4),
-			nn.LeakyReaLU(0.2, inplace=True),
+			nn.LeakyReLU(0.2, inplace=True),
 			nn.MaxPool2d(kernel_size=3, stride=3),
 			nn.Conv2d(20,22, kernel_size=9, stride=3, padding=4),
 			nn.LeakyReLU(0.2, inplace=True)
@@ -46,11 +58,11 @@ class ConvAutoencoder(nn.Module):
 		self.decoder = nn.Sequential(
 			nn.ConvTranspose2d(22,20, kernel_size=9, stride=3, padding=4),
 			nn.LeakyReLU(0.2, inplace=True),
-			nn.ConvTranspose2d(20,18, kernel_size=9, stride=2, padding=4, output_padding=1),
+			nn.ConvTranspose2d(20,18, kernel_size=9, stride=2, padding=4),
 			nn.LeakyReLU(0.2, inplace=True),
-			nn.ConvTranspose2d(18,16, kernel_size=9, stride=2, padding=4, output_padding=1),
+			nn.ConvTranspose2d(18,16, kernel_size=9, stride=2, padding=4),
 			nn.LeakyReLU(0.2, inplace=True),
-			nn.ConvTranspose2d(16,3, kernel_size=9, stride=1, padding=4, output_padding=1),
+			nn.ConvTranspose2d(16,3, kernel_size=9, stride=1, padding=4),
 			nn.Sigmoid()
 		)
 	def forward(self, x):
@@ -66,24 +78,30 @@ optimizer = optim.Adam(model.parameters(), lr=0.5e-4)
 criterion = nn.MSELoss()
 
 writer = SummaryWriter('runs/esempio')
-train_dir = "/test_dataset"
+train_dir = "test_dataset"
 test_dir = "/percorso/della/directory"
 patch_size = 300
 train_dataset = GrapeDataset(train_dir, patch_size)
-train_dataloader = DataLoader(train_dataset, batch_size = 8, shuffle = True)
+train_dataloader = DataLoader(train_dataset, batch_size = 8, shuffle = True, drop_last = True)
 #test_dataset = GrapeDataset(test_dir, patch_size)
 #test_dataloader = DataLoader(test_dataset, batch_size = 8, shuffle = False)
 print(len(train_dataset))
-print(len(test_dataset))
+#print(len(test_dataset))
 
-# Prende alcune immagini casuali da quelle di training
-dataiter = iter(trainloader)
-images, labels = next(dataiter)
+# Numero di immagini casuali da selezionare
+num_sample_images = 4
+# Selezionare alcune immagini casuali dal dataloader di training
+sample_images = []
+for i, data in enumerate(train_dataloader):
+	sample_images.extend(data)
+	if i == num_sample_images - 1:
+		break
 # Crea una grid di immagini
-img_grid = torchvision.utils.make_grid(images)
+img_grid = torchvision.utils.make_grid(sample_images, nrow=num_sample_images, normalize=True, scale_each=True)
 matplotlib_imshow(img_grid, one_channel = True)
-writer.add_image('images', img_grid)
-writer.add_graph(model, images)
+writer.add_image('Sample Images', img_grid)
+# Aggiungo il grafico del modello al writer
+writer.add_graph(model, img_grid)
 
 
 # Numero di epoche
@@ -118,7 +136,7 @@ for epoch in range(num_epochs):
 			total_loss = 0.0
 			# Aggiunta dei dati dell'encoder al projector
 			encoder_data = []
-			labels = []
+			encoder_labels = []
 			# Iterazione attraverso il dataset di addestramento
 			for j, data in enumerate(train_dataloader, 0):
 				inputs = data
@@ -126,13 +144,16 @@ for epoch in range(num_epochs):
 				# Calcolo dell'output dell'encoder
 				encoded = model.encoder(inputs)
 				encoder_data.append(encoded)
-				labels.append(f'Image_{j}')
+				encoder_labels.append(f'Image_{j}')
 			# Concatenazione dei dati dell'encoder
 			encoder_data = torch.cat(encoder_data, dim=0)
-			labels = torch.tensor(labels)
+			encoder_labels = torch.tensor(labels)
 			# Aggiunta dei dati dell'encoder al projector
 			writer.add_embedding(encoder_data, metadata=labels, global_step = step)
+# Chiusura dell'oggetto SummaryWriter
+writer.close()
 print("Finished Training!\n")
+
 
 # Valutazione del modello sul set di test
 #total_test_loss = 0.0

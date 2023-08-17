@@ -27,15 +27,13 @@ def matplotlib_imshow(img, one_channel=False):
 	else:
 		plt.imshow(np.transpose(npimg, (1, 2, 0)))
 
-def custom_collate_fn(batch):
-	# Calcola la dimensione massima tra le patch nel batch
-	max_height = max(patch.size(1) for patch in batch)
-	max_width = max(patch.size(1) for patch in batch)
-	# Effettua il padding per far si che tutte le patch abbiano le stesse dimensioni
-	padded_batch = [F.pad(patch, (0, max_width - patch.size(2), 0, max_height - patch.size(1))) for patch in batch]
-	# Converti la lista di tensori in un tensore batch
-	batch_tensor = torch.stack(padded_batch)
-	return batch_tensor
+# Definizione delle trasformazioni
+data_transform = transforms.Compose([
+	transforms.Resize((256, 256)),
+	transforms.CenterCrop(224),
+	transforms.ToTensor(),
+	transforms.Normalize(mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])
+])
 
 class ConvAutoencoder(nn.Module):
 	def __init__(self):
@@ -58,9 +56,9 @@ class ConvAutoencoder(nn.Module):
 		self.decoder = nn.Sequential(
 			nn.ConvTranspose2d(22,20, kernel_size=9, stride=3, padding=4),
 			nn.LeakyReLU(0.2, inplace=True),
-			nn.ConvTranspose2d(20,18, kernel_size=9, stride=2, padding=4),
+			nn.ConvTranspose2d(20,18, kernel_size=9, stride=2, padding=4, output_padding=1),
 			nn.LeakyReLU(0.2, inplace=True),
-			nn.ConvTranspose2d(18,16, kernel_size=9, stride=2, padding=4),
+			nn.ConvTranspose2d(18,16, kernel_size=9, stride=2, padding=4, output_padding=1),
 			nn.LeakyReLU(0.2, inplace=True),
 			nn.ConvTranspose2d(16,3, kernel_size=9, stride=1, padding=4),
 			nn.Sigmoid()
@@ -80,13 +78,14 @@ criterion = nn.MSELoss()
 writer = SummaryWriter('runs/esempio')
 train_dir = "test_dataset"
 test_dir = "/percorso/della/directory"
-patch_size = 300
-train_dataset = GrapeDataset(train_dir, patch_size)
-train_dataloader = DataLoader(train_dataset, batch_size = 8, shuffle = True, drop_last = True)
+
+train_dataset = GrapeDataset(train_dir, data_transform)
+train_dataloader = DataLoader(train_dataset, batch_size = 1, shuffle = True)
 #test_dataset = GrapeDataset(test_dir, patch_size)
 #test_dataloader = DataLoader(test_dataset, batch_size = 8, shuffle = False)
 print(len(train_dataset))
 #print(len(test_dataset))
+
 
 # Numero di immagini casuali da selezionare
 num_sample_images = 4
@@ -101,6 +100,7 @@ img_grid = torchvision.utils.make_grid(sample_images, nrow=num_sample_images, no
 matplotlib_imshow(img_grid, one_channel = True)
 writer.add_image('Sample Images', img_grid)
 # Aggiungo il grafico del modello al writer
+sample_batch = next(iter(train_dataloader))
 writer.add_graph(model, img_grid)
 
 

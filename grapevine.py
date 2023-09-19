@@ -27,10 +27,16 @@ class GrapeDataset(Dataset):
 					image_path = os.path.join(root, file)
 					image_files.append(image_path)
 		return image_files
+	
+	def convert_to_rgb(self, image):
+		if image.mode != 'RGB':
+			image = image.convert('RGB')
+		return image
 		
 	def __getitem__(self, index):
 		image_path = self.image_files[index]
 		image = Image.open(image_path)
+		image = self.convert_to_rgb(image)
 		if self.transform is not None:
 			image = self.transform(image)
 		return image
@@ -42,21 +48,18 @@ class GrapeDataset(Dataset):
 writer = SummaryWriter()
 
 # Definizione delle trasformazioni
-transform = transforms.Compose([
-	# Ridimensiona l'immagine alle dimensioni desiderate
-	transforms.Resize((300, 300)), 
-	# Converte l'immagine in un tensore
+data_transform = transforms.Compose([
 	transforms.ToTensor(),
-	transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+	transforms.Resize((320, 320), antialias = True),
 ])
 
 # Creazione del dataset
 data_dir = "test_dataset"
-dataset = GrapeDataset(data_dir, transform=transform)
+dataset = GrapeDataset(data_dir, transform=data_transform)
 print(len(dataset))
 
 # Creazione del dataloader
-dataloader = DataLoader(dataset, batch_size = 1, shuffle = True)
+dataloader = DataLoader(dataset, batch_size = 8, shuffle = True)
 
 # Caricamento di un batch di immagini dal dataloader
 dataiter = iter(dataloader)
@@ -66,7 +69,7 @@ images = next(dataiter)
 img_grid = make_grid(images, nrow=4, normalize=True, scale_each=True)
 
 # Aggiunta della griglia di immagini a TensorBoard
-writer.add_images('Sample Images', img_grid)
+writer.add_images('Sample Images', img_grid.unsqueeze(0))
 
 # Chiusura del SummaryWriter
 writer.close()

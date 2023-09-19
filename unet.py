@@ -163,20 +163,28 @@ for epoch in range(num_epochs):
 	print(f'Epoch [{epoch + 1}/{num_epochs}] Loss: {epoch_loss:.4f}')
 	# Registra la perdita su TensorBoard
 	writer.add_scalar('Loss/Train', epoch_loss, epoch)
+	
+	# Registra anche le immagini in input e le loro ricostruzioni
+	for i, batch in enumerate(train_dataloader):
+		if i == 0: # Registra solo la prima coppia di immagini 
+			inputs = batch
+			inputs = Variable(inputs)
+			# Calcolo dell'output del modello
+			outputs = model(inputs)
+			# Registra le coppie di immagini in input e ricostruite su TensorBoard
+			writer.add_image(f"Train/Input_{epoch}", inputs[0], epoch)
+			writer.add_image(f"Train/Reconstruction_{epoch}", outputs[0], epoch)
 
-# Chiusura dell'oggetto SummaryWriter
-writer.close()
 print("Finished Training!\n")
 
-# Valutazione del modello sul set di test
-total_test_loss = 0.0
 # Cambio in modalità validazione
 model.eval()
 
+# Valutazione del modello sul set di test
+total_test_loss = 0.0
 # Validazione del modello
 for data in enumerate(test_dataloader, 0):
 	inputs = data
-	inputs = Variable(inputs)
 	# Calcolo dell'output del modello
 	outputs = model(inputs)
 	# Registra le coppie di immagini in input e ricostruite su TensorBoard
@@ -186,5 +194,10 @@ for data in enumerate(test_dataloader, 0):
 	loss = criterion(outputs, inputs)
 	total_test_loss += loss.item()
 avg_test_loss = total_test_loss / len(test_dataloader)
-print(f'Test Loss: {avg_test_loss}\n')
+# Registra la loss di validazione su TensorBoard
+writer.add_scalar("Loss/Validation", avg_test_loss, epoch)
+print(f'Test Loss: {avg_test_loss:.4f}\n')
 print("Finished Validation!")
+
+# Chiusura dell'oggetto SummaryWriter
+writer.close()

@@ -29,8 +29,7 @@ def matplotlib_imshow(img, one_channel=False):
 
 # Definizione delle trasformazioni
 data_transform = transforms.Compose([
-	transforms.Resize((256, 256)),
-	transforms.CenterCrop(224),
+	transforms.Resize((16, 16)),
 	transforms.ToTensor(),
 	transforms.Normalize(mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])
 ])
@@ -48,13 +47,13 @@ class ConvAutoencoder(nn.Module):
 			nn.MaxPool2d(kernel_size=2, stride=2),
 			nn.Conv2d(18,20, kernel_size=9, stride=2, padding=4),
 			nn.LeakyReLU(0.2, inplace=True),
-			nn.MaxPool2d(kernel_size=3, stride=3),
+			nn.MaxPool2d(kernel_size=2, stride=2),
 			nn.Conv2d(20,22, kernel_size=9, stride=3, padding=4),
 			nn.LeakyReLU(0.2, inplace=True)
 		)
 		# Decoder
 		self.decoder = nn.Sequential(
-			nn.ConvTranspose2d(22,20, kernel_size=9, stride=3, padding=4),
+			nn.ConvTranspose2d(22,20, kernel_size=9, stride=3, padding=4, output_padding=1),
 			nn.LeakyReLU(0.2, inplace=True),
 			nn.ConvTranspose2d(20,18, kernel_size=9, stride=2, padding=4, output_padding=1),
 			nn.LeakyReLU(0.2, inplace=True),
@@ -80,7 +79,7 @@ train_dir = "test_dataset"
 test_dir = "/percorso/della/directory"
 
 train_dataset = GrapeDataset(train_dir, data_transform)
-train_dataloader = DataLoader(train_dataset, batch_size = 1, shuffle = True)
+train_dataloader = DataLoader(train_dataset, batch_size = 8, shuffle = True)
 #test_dataset = GrapeDataset(test_dir, patch_size)
 #test_dataloader = DataLoader(test_dataset, batch_size = 8, shuffle = False)
 print(len(train_dataset))
@@ -101,6 +100,7 @@ matplotlib_imshow(img_grid, one_channel = True)
 writer.add_image('Sample Images', img_grid)
 # Aggiungo il grafico del modello al writer
 sample_batch = next(iter(train_dataloader))
+
 writer.add_graph(model, img_grid)
 
 
@@ -147,7 +147,7 @@ for epoch in range(num_epochs):
 				encoder_labels.append(f'Image_{j}')
 			# Concatenazione dei dati dell'encoder
 			encoder_data = torch.cat(encoder_data, dim=0)
-			encoder_labels = torch.tensor(labels)
+			encoder_labels = torch.tensor(encoder_labels)
 			# Aggiunta dei dati dell'encoder al projector
 			writer.add_embedding(encoder_data, metadata=labels, global_step = step)
 # Chiusura dell'oggetto SummaryWriter
